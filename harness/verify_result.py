@@ -1,0 +1,84 @@
+#!/usr/bin/env python3
+"""
+verify_result.py - correctness oracle for cosine similarity
+"""
+# Copyright (c) 2025, Amazon Web Services
+# All rights reserved.
+#
+# This software is licensed under the terms of the Apache v2 License.
+# See the LICENSE.md file for details.
+import argparse
+import sys
+import numpy as np
+from utils import TextFormat
+from params import PAYLOAD_DIM
+
+# The payloads are vectors of 7 int16 numbers
+#PAYLOAD_DIM = 7
+
+def main():
+    """
+    Usage:  python3 verify_result.py  <expected_file>  <result_file> [--count_only]
+    Returns exit-code 0 if equal or if there are more than 32 expected results, 1 otherwise.
+    Prints a message so the caller can log it.
+    """
+    # Parse arguments using argparse
+    parser = argparse.ArgumentParser(description='Copmare expeocted vs obtained results.')
+    parser.add_argument('expected_file', type=str,
+                        help='File containing the expected results')
+    parser.add_argument('result_file', type=str,
+                        help='File containing the obtained results')
+    parser.add_argument('--count_only', action='store_true',
+                        help='Only # of matches, not payloads')
+
+    args, _ = parser.parse_known_args()
+
+    if args.count_only: # not payloads
+        # Read the expected and result binary files, containing just a counter
+        expected_data = np.fromfile(args.expected_file, dtype=np.int_)
+        result_data = np.fromfile(args.result_file, dtype=np.int_)
+
+        if np.array_equal(expected_data, result_data):
+            print(f"{TextFormat.GREEN}         [harness] PASS (result={expected_data}){TextFormat.RESET}")
+            sys.exit(0)
+        else:
+            print(f"{TextFormat.RED}         [harness] FAIL (expected {expected_data}){TextFormat.RESET}",
+                  f"but found {result_data})")
+            sys.exit(1)
+
+    # Read the expected and result binary files containing payload vectors
+    expected_data = np.fromfile(args.expected_file, dtype=np.int16)
+    result_data = np.fromfile(args.result_file, dtype=np.int16)
+
+    # Reshape into payload vectors
+    expected_payloads = expected_data.reshape(-1, PAYLOAD_DIM)
+    result_payloads = result_data.reshape(-1, PAYLOAD_DIM)
+
+    num_expected = len(expected_payloads)
+    num_results = len(result_payloads)
+
+    # If there are more than 32 expected results, always report success
+    if num_expected > 32:
+        print(f"{TextFormat.GREEN}         [harness] PASS (Too many matches: {num_expected} > 32,",
+              f"skipping detailed comparison){TextFormat.RESET}")
+        sys.exit(0)
+
+    # Otherwise, compare the payloads
+    if num_expected != num_results:
+        print(f"{TextFormat.RED}         [harness] FAIL (Expected {num_expected} payloads, got {num_results}){TextFormat.RESET}")
+        sys.exit(1)
+
+    # Compare each payload vector
+    for i in range(num_expected):
+        if not np.array_equal(expected_payloads[i], result_payloads[i]):
+            print(f"{TextFormat.RED}         [harness] FAIL (Payload {i} mismatch){TextFormat.RESET}")
+            print(f"  Expected: {expected_payloads[i]}")
+            print(f"  Got:      {result_payloads[i]}")
+            sys.exit(1)
+
+    print(f"{TextFormat.GREEN}         [harness] PASS (All {num_expected} payload vectors match){TextFormat.RESET}")
+    sys.exit(0)
+
+
+if __name__ == "__main__":
+    main()

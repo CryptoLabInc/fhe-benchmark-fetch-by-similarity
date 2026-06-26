@@ -1,0 +1,60 @@
+This library incorporates third-party components, which are
+distributed under the licenses listed below.
+
+## License Texts
+
+The full text of each license referenced below is included in the
+LICENSES/ directory of this distribution:
+
+- Apache License 2.0 → LICENSES/Apache-2.0.txt
+- MIT License        → LICENSES/MIT.txt
+- BSD 3-Clause       → LICENSES/BSD-3-Clause.txt
+- CC0 1.0 Universal  → LICENSES/CC0-1.0.txt
+
+The NVIDIA CUDA EULA is available at the URL listed in the
+"Third-Party Proprietary Software" section.
+
+## Open Source Software
+
+- alea (Apache License 2.0)
+  Copyright © 2025-2026 CryptoLab, Inc.
+  https://github.com/CryptoLabInc/alea
+
+- deb (Apache License 2.0)
+  Copyright © 2025-2026 CryptoLab, Inc.
+  https://github.com/CryptoLabInc/deb
+
+- nlohmann/json (MIT License)
+  Copyright © 2013-2025 Niels Lohmann
+  https://github.com/nlohmann/json
+
+- flatbuffers (Apache License 2.0)
+  Copyright © 2014 Google Inc.
+  https://github.com/google/flatbuffers
+
+- googletest (BSD 3-Clause)
+  Copyright © 2008 Google Inc.
+  https://github.com/google/googletest
+
+- benchmark (Apache License 2.0)
+  Copyright © 2015 Google Inc.
+  https://github.com/google/benchmark
+
+- Keccak / SHA-3 implementations (Public Domain / CC0 1.0)
+  Authors: Guido Bertoni, Joan Daemen, Michaël Peeters,
+  Gilles Van Assche, Ronny Van Keer, Daniel J. Bernstein,
+  and Peter Schwabe.
+
+  Implementations used:
+    - fips202, fips202x4 — sourced from Kyber
+      https://github.com/pq-crystals/kyber
+    - KeccakP-1600-times4-SIMD256 — sourced from XKCP
+      https://github.com/XKCP/XKCP
+
+## Third-Party Proprietary Software
+
+- NVIDIA CUDA Runtime 13.0 (NVIDIA CUDA Toolkit EULA)
+  Copyright © 2025 NVIDIA Corporation. All rights reserved.
+  https://docs.nvidia.com/cuda/eula/index.html
+  Components used: libcudart (dynamic), libcudart_static, libcudadevrt (static).
+  Use of this product is subject to the NVIDIA CUDA Toolkit EULA.

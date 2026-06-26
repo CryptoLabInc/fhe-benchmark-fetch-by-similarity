@@ -1,0 +1,30 @@
+{
+  "Timing": {
+    "Dataset generation": "4.4757s",
+    "Dataset preprocessing": "0.9666s",
+    "Key Generation": "3.5302s",
+    "Dataset encoding and encryption": "13.9971s",
+    "Encrypted dataset preprocessing": "4.3687s",
+    "Query generation": "0.0523s",
+    "Query preprocessing": "0.0508s",
+    "Query encryption": "0.0229s",
+    "Encrypted computation": "0.1957s",
+    "Result decryption and postprocessing": "0.0849s",
+    "Total": "27.7448s"
+  },
+  "Bandwidth": {
+    "Public and evaluation keys": "3.0G",
+    "Encrypted database": "4.0G",
+    "Encrypted query": "64.0K",
+    "Encrypted results": "1.0M"
+  },
+  "Server Reported": {
+    "[[Total compute time]]": "0.167748s",
+    "Load query ciphertext": "0.000103s",
+    "Prepare query": "0.001126s",
+    "Scoring": "0.010504s",
+    "Compute matching": "0.152243s",
+    "Count matches": "0.001691s",
+    "Save result": "0.002081s"
+  }
+}
