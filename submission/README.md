@@ -13,7 +13,7 @@ The server-side compute executable runs in a persistent **server mode**: it is l
 * **Mode:** SMALL / MEDIUM
 * **Database size:** 50,000 / 1,000,000 records
 * **Record dimension:** 128 / 256
-* **Payload dimension:** 16 (harness payload of 16 int16 channels)
+* **Payload dimension:** 7 (harness payload of 7 int16 channels)
 
 The submission evaluates encrypted similarity queries against a fixed encrypted database. In `--count_only` mode it returns the number of matches above the threshold (0.8); without `--count_only` it returns the matching payloads (up to `K = 32` per query).
 
@@ -28,11 +28,11 @@ Assume that the similarity score value is not within [0.703, 0.845] when dim = 1
 **Client / Server (single machine)**
 
 * CPU: x86\_64
-* GPU: RTX 5090, NVIDIA (single GPU sufficient for small and medium preset)
+* GPU: NVIDIA Blackwell architectures (single GPU sufficient for small(VRAM over 11GB) and medium(VRAM over 17GB) preset)
 * RAM: 64 GB+
 * CUDA toolkit + OpenMP
 
-**Supported GPU architectures.** The prebuilt `libjuvia` is compiled for the `sm-120` CUDA compute capabilities (Blackwell consumer - RTX 50-seriese).
+**Supported GPU architectures.** The prebuilt `libjuvia` is compiled for the `sm-120` CUDA compute capabilities. (GeForce RTX 50-series and RTX Pro 6000 Blackwell)
 
 The engine executables run the client and server stages in the same process tree. Each executable runs with its working directory set to the harness I/O directory for the instance (`io/{instance}/`, e.g. `io/small`), so every file it reads or writes lands in one place: the client-local artifacts (secret key under `secret-keys/`, decrypted output under `task-decrypted-data/`) and the client↔server wire data (evaluation keys under `keys/`, encrypted database and query under `encrypted/`, result ciphertexts under `results/`). The Python wrappers only translate between the harness data formats and the engine's formats — reading the harness dataset/query from `datasets/{instance}/` and writing the final `results.bin` back into `io/{instance}/`. The compiled executables and the prebuilt library stay in `submission/` (`submission/build/export/`, `submission/lib/`); they are located by absolute path, so their working directory is free to be the I/O directory.
 
@@ -116,7 +116,7 @@ A `submission/Dockerfile` builds a self-contained image (harness + the vendored 
 
 * Docker with BuildKit (Docker 23+; the build uses a per-Dockerfile `.dockerignore`).
 * NVIDIA driver + [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/) (for `--gpus`).
-* A CUDA Ampere-or-newer GPU (`sm_80`+; see *Supported GPU architectures* above). Reference: RTX 5090 (`sm_120`).
+* A CUDA Blackwell GPU (*Supported GPU architectures* above).
 * Network access **during the build** (CMake fetches `nlohmann/json` via CPM).
 
 **Image contents** (installed on top of `nvidia/cuda:13.0.1-devel-ubuntu24.04`): `build-essential`, `cmake`, `git`, OpenMP, `python3` + `python3-numpy` (numpy ≥ 1.20). The task executables are pre-built during the image build, so the first run starts immediately.
@@ -176,13 +176,13 @@ End-to-end harness stages — the **last query** of a 3-query run (`measurements
 
 | Stage                               | OMP | SMALL | MEDIUM |
 |-------------------------------------|----:|------:|-------:|
-| Key generation                      | 8   | 3.32 s | 3.53 s |
-| DB encoding & encryption            | 8   | 0.48 s | 14.00 s |
-| Server setup (load keys/DB once)    | 4   | 2.93 s | 4.37 s |
+| Key generation                      | 8   | 3.60 s | 3.70 s |
+| DB encoding & encryption            | 8   | 0.57 s | 14.75 s |
+| Server setup (load keys/DB once)    | 4   | 3.06 s | 4.28 s |
 | Query encryption                    | 8   | 0.02 s | 0.02 s |
-| **Encrypted computation (server)**  | 4   | **0.041 s** | **0.194 s** |
-| Result decryption & postprocessing  | 1   | 0.08 s | 0.09 s |
-| **End-to-end total**                |     | **7.37 s** | **28.02 s** |
+| **Encrypted computation (server)**  | 4   | **0.040 s** | **0.193 s** |
+| Result decryption & postprocessing  | 1   | 0.08 s | 0.08 s |
+| **End-to-end total**                |     | **7.88 s** | **28.97 s** |
 | Public & evaluation keys            |     | 3.0 GB | 3.0 GB |
 | Encrypted database                  |     | 128 MB | 4.0 GB |
 | Encrypted query                     |     | 64 KB | 64 KB |
@@ -192,15 +192,15 @@ End-to-end harness stages — the **last query** of a 3-query run (`measurements
 
 | Sub-step               | SMALL | MEDIUM |
 |------------------------|------:|-------:|
-| Load query ciphertext  | 0.13 ms | 0.11 ms |
-| Prepare query          | 0.61 ms | 1.14 ms |
-| Scoring                | 0.83 ms | 10.45 ms |
-| Compute matching       | 12.23 ms | 152.22 ms |
-| Count matches          | 1.40 ms | 1.47 ms |
-| Save result            | 1.37 ms | 1.40 ms |
-| **Server per-query total** | **16.56 ms** | **166.79 ms** |
+| Load query ciphertext  | 0.12 ms | 0.12 ms |
+| Prepare query          | 0.61 ms | 1.13 ms |
+| Scoring                | 0.73 ms | 10.42 ms |
+| Compute matching       | 12.27 ms | 152.56 ms |
+| Count matches          | 1.39 ms | 1.50 ms |
+| Save result            | 1.53 ms | 1.43 ms |
+| **Server per-query total** | **16.64 ms** | **167.17 ms** |
 
-> **Why the "Encrypted computation" stage ≠ the server per-query total.** The harness *Encrypted computation* stage (0.041 s / 0.194 s) is larger than the engine's per-query total above (16.56 ms / 166.79 ms) by **≈ 24–28 ms**. That gap is per-query **Python wrapper overhead**, not server time: each harness step is a fresh Python process that imports numpy, then the wrapper writes `config.json`, signals the running server over a FIFO, polls for its `DONE` line, and writes the measurement JSON. It is roughly constant across presets.
+> **Why the "Encrypted computation" stage ≠ the server per-query total.** The harness *Encrypted computation* stage (0.040 s / 0.193 s) is larger than the engine's per-query total above (16.64 ms / 167.17 ms) by **≈ 23–26 ms**. That gap is per-query **Python wrapper overhead**, not server time: each harness step is a fresh Python process that imports numpy, then the wrapper writes `config.json`, signals the running server over a FIFO, polls for its `DONE` line, and writes the measurement JSON. It is roughly constant across presets.
 
 ### Payload mode (`task2-return-k-matches`) 
 
@@ -212,13 +212,13 @@ End-to-end harness stages — the **last query** of a 3-query run (`measurements
 
 | Stage                               | OMP | SMALL | MEDIUM |
 |-------------------------------------|----:|------:|-------:|
-| Key generation                      | 8   | 3.52 s | 3.49 s |
-| DB encoding & encryption            | 8   | 0.48 s | 13.94 s |
-| Server setup (load keys/DB once)    | 4   | 2.98 s | 5.38 s |
+| Key generation                      | 8   | 3.59 s | 3.63 s |
+| DB encoding & encryption            | 8   | 0.49 s | 14.43 s |
+| Server setup (load keys/DB once)    | 4   | 3.04 s | 5.51 s |
 | Query encryption                    | 8   | 0.02 s | 0.02 s |
-| **Encrypted computation (server)**  | 4   | **0.040 s** | **0.300 s** |
-| Result decryption & postprocessing  | 1   | 0.09 s | 0.09 s |
-| **End-to-end total**                |     | **7.64 s** | **29.04 s** |
+| **Encrypted computation (server)**  | 4   | **0.040 s** | **0.299 s** |
+| Result decryption & postprocessing  | 1   | 0.09 s | 0.07 s |
+| **End-to-end total**                |     | **7.79 s** | **29.95 s** |
 | Public & evaluation keys            |     | 3.0 GB | 3.0 GB |
 | Encrypted database                  |     | 128 MB | 4.0 GB |
 | Encrypted query                     |     | 64 KB | 64 KB |
@@ -230,15 +230,15 @@ End-to-end harness stages — the **last query** of a 3-query run (`measurements
 
 | Sub-step                          | SMALL (single-block fast path) | MEDIUM (multi-block full path) |
 |-----------------------------------|------:|-------:|
-| Load query ciphertext             | 0.11 ms | 0.14 ms |
-| Prepare query                     | 0.60 ms | 1.13 ms |
-| Scoring                           | 0.74 ms | 10.53 ms |
-| Compute matching                  | 13.06 ms | 155.34 ms |
-| Compute payload                   | 0.69 ms | 107.39 ms |
-| Save result ciphertexts           | 3.81 ms | 0.40 ms |
-| **Server per-query total**        | **19.03 ms** | **274.93 ms** |
+| Load query ciphertext             | 0.13 ms | 0.13 ms |
+| Prepare query                     | 0.62 ms | 1.13 ms |
+| Scoring                           | 0.74 ms | 10.45 ms |
+| Compute matching                  | 13.00 ms | 155.54 ms |
+| Compute payload                   | 0.58 ms | 107.54 ms |
+| Save result ciphertexts           | 4.01 ms | 0.38 ms |
+| **Server per-query total**        | **19.08 ms** | **275.18 ms** |
 
-As in count mode, the harness *Encrypted computation* stage (0.040 s / 0.300 s) exceeds the engine's per-query total (19.03 ms / 274.93 ms) by **≈ 21–25 ms** of per-query Python wrapper overhead (fresh Python process + numpy import + FIFO poll + config / result / JSON I/O), independent of the server work. The dominant cost is `Compute matching` at SMALL; at MEDIUM it is `Compute matching` followed by the `Compute payload` gather (≈ 107 ms — the multi-block one-hot/decompose/modPack pipeline).
+As in count mode, the harness *Encrypted computation* stage (0.040 s / 0.299 s) exceeds the engine's per-query total (19.08 ms / 275.18 ms) by **≈ 21–24 ms** of per-query Python wrapper overhead (fresh Python process + numpy import + FIFO poll + config / result / JSON I/O), independent of the server work. The dominant cost is `Compute matching` at SMALL; at MEDIUM it is `Compute matching` followed by the `Compute payload` gather (≈ 108 ms — the multi-block one-hot/decompose/modPack pipeline).
 
 ---
 

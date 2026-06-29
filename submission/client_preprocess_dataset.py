@@ -14,7 +14,7 @@ from submission_utils import (
     parse_harness_args, size_to_preset, get_data_dir, get_io_dir,
     get_record_dim, get_db_size,
     update_config, write_origin_file, write_payload_file,
-    NUM_PAYLOAD_CHANNELS, PAYLOAD_OFFSET,
+    PAYLOAD_DIM, PAYLOAD_OFFSET,
 )
 
 
@@ -32,7 +32,7 @@ def main():
     data_dir = get_data_dir(args.size)
     db = np.fromfile(data_dir / "db.bin", dtype=np.float32).reshape(db_size, dim)
     harness_payloads = np.fromfile(data_dir / "payloads.bin", dtype=np.int16).reshape(
-        db_size, NUM_PAYLOAD_CHANNELS)
+        db_size, PAYLOAD_DIM)
 
     # Convert to engine format (written into the engine working dir = io/{instance})
     engine_data_dir = get_io_dir(args.size) / "data"
@@ -43,7 +43,7 @@ def main():
     write_origin_file(origin_path, db)
     print(f"  Converted {db_size} vectors ({dim}-dim) to {origin_path}")
 
-    # Write payload file (NUM_PAYLOAD_CHANNELS uint64 per record, record-major:
+    # Write payload file (PAYLOAD_DIM uint64 per record, record-major:
     # payload[i * num_channels + c]).  Offset by PAYLOAD_OFFSET so every channel
     # value is strictly positive — the engine's decrypt skips slots with
     # |value| <= 0.25, which would otherwise drop legitimate zero entries.
@@ -51,7 +51,7 @@ def main():
         np.uint64).reshape(-1)
     payload_path = engine_data_dir / f"task-{preset}_payload.bin"
     write_payload_file(payload_path, engine_payloads)
-    print(f"  Converted {db_size} x {NUM_PAYLOAD_CHANNELS} payload channels "
+    print(f"  Converted {db_size} x {PAYLOAD_DIM} payload channels "
           f"to {payload_path}")
 
 

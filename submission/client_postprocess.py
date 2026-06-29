@@ -10,9 +10,9 @@ count_only mode:
 payload mode:
   - Reads task-decrypted-data/2/decrypted.bin
       uint64 data_size
-      float64 values[data_size]   (== match_count * NUM_PAYLOAD_CHANNELS)
+      float64 values[data_size]   (== match_count * PAYLOAD_DIM)
   - Rounds each value to int, subtracts PAYLOAD_OFFSET (undoes preprocess shift),
-    reshapes to (match_count, NUM_PAYLOAD_CHANNELS), lex-sorts to match the
+    reshapes to (match_count, PAYLOAD_DIM), lex-sorts to match the
     harness's expected ordering (see cleartext_impl.py), and writes int16 to
     io/{size}/results.bin.
 """
@@ -23,7 +23,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 from submission_utils import (
     parse_harness_args, size_to_preset, get_io_dir,
-    NUM_PAYLOAD_CHANNELS, PAYLOAD_OFFSET,
+    PAYLOAD_DIM, PAYLOAD_OFFSET,
 )
 
 
@@ -66,17 +66,17 @@ def postprocess_payload(engine_dir: Path, io_dir: Path):
         print(f"Error: Short read in {dec_path}: header={data_size}, got={len(values)}")
         sys.exit(1)
 
-    if data_size % NUM_PAYLOAD_CHANNELS != 0:
+    if data_size % PAYLOAD_DIM != 0:
         print(f"Error: Decrypted value count {data_size} is not a multiple of "
-              f"NUM_PAYLOAD_CHANNELS={NUM_PAYLOAD_CHANNELS}; payload grouping ambiguous.")
+              f"PAYLOAD_DIM={PAYLOAD_DIM}; payload grouping ambiguous.")
         sys.exit(1)
 
-    match_count = data_size // NUM_PAYLOAD_CHANNELS
+    match_count = data_size // PAYLOAD_DIM
     print(f"  Decrypted matches: {match_count}")
 
     # Round to nearest int, undo the +PAYLOAD_OFFSET shift applied at preprocess.
     rounded = np.rint(values).astype(np.int64) - PAYLOAD_OFFSET
-    payloads = rounded.reshape(match_count, NUM_PAYLOAD_CHANNELS).astype(np.int16)
+    payloads = rounded.reshape(match_count, PAYLOAD_DIM).astype(np.int16)
 
     # Harness's expected.bin (see harness/cleartext_impl.py) sorts matching
     # payload rows lexicographically.  Match that ordering so verify_result.py

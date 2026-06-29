@@ -80,79 +80,108 @@ const std::map<std::string, std::pair<uint32_t, uint32_t>> PRESET_MAP = {
     {"small", {128, 50000}}, {"medium", {256, 1000000}},
     //{"large", {512, 20000000}}, // Not supported yey
 };
-// --- Per-preset payload layout -------------------------------------------------------
-// CANONICAL (general / "main") payload = PAYLOAD_CHANNELS_MAIN channels of PAYLOAD_BIT_MAIN
-// bits (16 x 4 = 64 bits/record).  The external datagen ALWAYS writes this canonical layout,
-// for EVERY preset, so one generated dataset serves all presets.  The multi-block hoist path
-// (medium) consumes it directly.  The small preset's single-block FAST PATH emits only
-// PAYLOAD_CHANNELS_SMALL ciphertexts, so the SERVER repacks the same 64-bit payload into
-// PAYLOAD_CHANNELS_SMALL channels of PAYLOAD_BIT_SMALL bits (3 x 22 = 66 >= 64, the FEWEST
-// channels that cover 64 bits -- the top limb uses only 20 of its 22 bits) IN MEMORY at load
-// time (payloadToPresetLayout -> payloadPackToSmall); decrypt recovers it with
-// payloadUnpackFromSmall back to the canonical 16 x 4 -- so both presets report the same format.
-// payloadBitSize / payloadNumChannels pick the in-memory layout from the preset, so ONE build
-// serves both.  3 channels (vs 4 x 16) emits ONE FEWER output ciphertext (-25% files).  The
-// 22-bit signed codec caps |v| at 2^21, so the OR-error amplification eta*|v| is 2^6 = 64x larger
-// than 16-bit; this is safe because the synthetic DB has a wide threshold gap (nearest non-match
+// --- Payload layout ------------------------------------------------------------------
+// INPUT ("canonical" / on-disk) payload = inputPayloadDim() channels of inputPayloadBit()
+// bits each (default 16 x 4 = 64 bits/record).  BOTH the channel count and the per-channel bit
+// width come from config.json (INPUT_PAYLOAD_DIM / INPUT_PAYLOAD_BIT), read once by loadJson;
+// the defaults below reproduce the historical 16 x 4 layout.  The external datagen writes this
+// layout (it reads the same two config values), so one generated dataset serves every preset.
+//
+// INTERNAL (in-memory, pipeline-consumed) payload = payloadNumChannels(preset) channels of
+// payloadBitSize(preset) bits each.  The per-channel bit width is FIXED per preset (a build
+// constant): small uses wide PAYLOAD_BIT_SMALL-bit limbs (single-block FAST PATH), every other
+// preset uses PAYLOAD_BIT_MAIN-bit nibbles (the hoist path needs <= 4 bit to fit the juviad12
+// 53-bit prime).  The internal CHANNEL COUNT is DERIVED = ceil(total input bits / internal bit
+// width), so it follows the configured input layout automatically.  payloadToPresetLayout repacks
+// each record's input channels into internal channels at server load time (identity when the two
+// layouts coincide, e.g. the default medium 16 x 4 input vs 16 x 4 internal); decrypt inverts with
+// payloadUnpackFromInternal back to the input layout, so every preset reports the same format.
+// The single-block FAST PATH emits payloadNumChannels("small") output ciphertexts (the FEWEST
+// channels that cover the payload, e.g. ceil(64/22) = 3 -- the top limb uses only its low bits).
+// The signed codec caps |v| at 2^(bit-1) (2^21 at 22-bit), so the OR-error amplification eta*|v|
+// is large; this is safe because the synthetic DB has a wide threshold gap (nearest non-match
 // ~0.49, nearest match ~0.89 at thr 0.8) so the cleaner residual eta ~ 1e-7 everywhere and
 // 4*eta^3*2^21 << the 0.5 detection gate.  The decode floor payloadSmallMinval scales with the
-// bit width to keep the spurious-rejection margin (see below).  NOTE the top limb (bits[44:64],
-// only 20 bits, value < 2^20 < 2^21=half) ALWAYS signed-encodes to [-2^21,-2^20], so it is a
-// guaranteed-large self-reference channel: a true match's slot_max >= ~2^20 regardless of payload.
-constexpr uint64_t PAYLOAD_BIT_MAIN = 4;
-constexpr uint64_t PAYLOAD_CHANNELS_MAIN = 16;
-constexpr uint64_t PAYLOAD_BIT_SMALL = 22;
-constexpr uint64_t PAYLOAD_CHANNELS_SMALL = 3;
+// bit width to keep the spurious-rejection margin (see below).
+//
+// NOTE single-word packing: inputPayloadTotalBits() must be <= 64 (the pack concatenates all
+// input channels into one uint64); loadJson enforces this.
+constexpr uint64_t PAYLOAD_BIT_MAIN = 4;       // internal nibble width (hoist path); default input dim
+constexpr uint64_t PAYLOAD_CHANNELS_MAIN = 16; // default input channel count
+constexpr uint64_t PAYLOAD_BIT_SMALL = 22;     // internal limb width (small single-block fast path)
+
+// Runtime input payload layout, populated by loadJson from config.json (defaults reproduce the
+// historical 16 x 4).  bit = bits per input channel, dim = number of input channels.
+inline uint64_t g_input_payload_bit = PAYLOAD_BIT_MAIN;
+inline uint64_t g_input_payload_dim = PAYLOAD_CHANNELS_MAIN;
+inline uint64_t inputPayloadBit() { return g_input_payload_bit; }
+inline uint64_t inputPayloadDim() { return g_input_payload_dim; }
+inline uint64_t inputPayloadTotalBits() { return g_input_payload_bit * g_input_payload_dim; }
 
 inline bool isSmallPreset(const std::string &preset) { return preset == "small"; }
+// Internal per-channel bit width (fixed per preset).
 inline uint64_t payloadBitSize(const std::string &preset) {
     return isSmallPreset(preset) ? PAYLOAD_BIT_SMALL : PAYLOAD_BIT_MAIN;
 }
+// Internal channel count = ceil(total input bits / internal bit width) -- derived from the
+// configured input layout, so the pipeline's num_payload_channels_ follows config.
 inline uint64_t payloadNumChannels(const std::string &preset) {
-    return isSmallPreset(preset) ? PAYLOAD_CHANNELS_SMALL : PAYLOAD_CHANNELS_MAIN;
+    const uint64_t bits = payloadBitSize(preset);
+    return (inputPayloadTotalBits() + bits - 1) / bits;
 }
 
-// Repack one record between the canonical 16 x PAYLOAD_BIT_MAIN nibbles (each in
-// [0, 2^PAYLOAD_BIT_MAIN), full 4-bit range) and PAYLOAD_CHANNELS_SMALL limbs of
-// PAYLOAD_BIT_SMALL bits: concatenate the nibbles into one 64-bit word and slice it into limbs.
-// Limbs may be 0 (nibbles can be 0); the signed codec below maps the whole limb range
-// [0, 2^PAYLOAD_BIT_SMALL) bijectively onto nonzero signed values, so a 0-valued limb still
-// encodes to a detectable nonzero value.  4 x 16 = 64 is an EXACT cover of the 64-bit payload
-// (each limb is exactly 4 nibbles; no spare/unused bits).
-inline void payloadPackToSmall(const uint64_t *nib, uint64_t *limb) {
-    const uint64_t nmask = (1ULL << PAYLOAD_BIT_MAIN) - 1;
-    const uint64_t lmask = (1ULL << PAYLOAD_BIT_SMALL) - 1;
+// Repack one record between the input channels (inputPayloadDim x inputPayloadBit bits, each
+// in [0, 2^inputPayloadBit)) and num_internal_channels limbs of internal_bits each: concatenate
+// the input channels LSB-first into one 64-bit word and slice it into limbs (and the inverse).
+// Generalizes the former fixed 16 x 4 <-> 3 x 22 pack.  Limbs may be 0 (input channels can be 0);
+// the signed codec below maps the whole limb range bijectively onto nonzero signed values, so a
+// 0-valued limb still encodes to a detectable nonzero value.  Requires inputPayloadTotalBits()
+// <= 64 (single-word packing; enforced in loadJson).
+inline void payloadPackToInternal(const uint64_t *in_ch, uint64_t *limb, uint64_t internal_bits,
+                                  uint64_t num_internal_channels) {
+    const uint64_t in_bits = inputPayloadBit();
+    const uint64_t in_channels = inputPayloadDim();
+    const uint64_t imask = (in_bits >= 64) ? ~0ULL : ((1ULL << in_bits) - 1);
+    const uint64_t lmask = (internal_bits >= 64) ? ~0ULL : ((1ULL << internal_bits) - 1);
     uint64_t packed = 0;
-    for (uint64_t k = 0; k < PAYLOAD_CHANNELS_MAIN; ++k)
-        packed |= (nib[k] & nmask) << (PAYLOAD_BIT_MAIN * k);
-    for (uint64_t j = 0; j < PAYLOAD_CHANNELS_SMALL; ++j)
-        limb[j] = (packed >> (PAYLOAD_BIT_SMALL * j)) & lmask;
+    for (uint64_t k = 0; k < in_channels; ++k)
+        packed |= (in_ch[k] & imask) << (in_bits * k);
+    for (uint64_t j = 0; j < num_internal_channels; ++j)
+        limb[j] = (packed >> (internal_bits * j)) & lmask;
 }
-inline void payloadUnpackFromSmall(const uint64_t *limb, uint64_t *nib) {
-    const uint64_t nmask = (1ULL << PAYLOAD_BIT_MAIN) - 1;
-    const uint64_t lmask = (1ULL << PAYLOAD_BIT_SMALL) - 1;
+inline void payloadUnpackFromInternal(const uint64_t *limb, uint64_t *in_ch, uint64_t internal_bits,
+                                      uint64_t num_internal_channels) {
+    const uint64_t in_bits = inputPayloadBit();
+    const uint64_t in_channels = inputPayloadDim();
+    const uint64_t imask = (in_bits >= 64) ? ~0ULL : ((1ULL << in_bits) - 1);
+    const uint64_t lmask = (internal_bits >= 64) ? ~0ULL : ((1ULL << internal_bits) - 1);
     uint64_t packed = 0;
-    for (uint64_t j = 0; j < PAYLOAD_CHANNELS_SMALL; ++j)
-        packed |= (limb[j] & lmask) << (PAYLOAD_BIT_SMALL * j);
-    for (uint64_t k = 0; k < PAYLOAD_CHANNELS_MAIN; ++k)
-        nib[k] = (packed >> (PAYLOAD_BIT_MAIN * k)) & nmask;
+    for (uint64_t j = 0; j < num_internal_channels; ++j)
+        packed |= (limb[j] & lmask) << (internal_bits * j);
+    for (uint64_t k = 0; k < in_channels; ++k)
+        in_ch[k] = (packed >> (in_bits * k)) & imask;
 }
 
-// Convert the canonical record-major MAIN payload (PAYLOAD_CHANNELS_MAIN nibbles/record, the
-// uniform on-disk format the datagen writes for every preset) into the per-preset IN-MEMORY
-// layout the pipeline consumes: the small preset packs each record's PAYLOAD_CHANNELS_MAIN
-// nibbles into PAYLOAD_CHANNELS_SMALL limbs (payloadPackToSmall); every other preset keeps the
-// canonical layout unchanged.  Called once at server load (RetrievalPipelineImpl::prepareResources)
-// so num_payload_channels_ (= payloadNumChannels(preset)) indexes the returned vector directly.
+// Convert the input-layout record-major payload (inputPayloadDim values/record, the on-disk
+// format the datagen writes) into the per-preset IN-MEMORY layout the pipeline consumes: repack
+// each record's input channels into payloadNumChannels(preset) limbs of payloadBitSize(preset)
+// bits (payloadPackToInternal).  Identity when the input layout already equals the internal
+// layout (e.g. the default medium 16 x 4 input vs 16 x 4 internal).  Called once at server load
+// (RetrievalPipelineImpl::prepareResources) so num_payload_channels_ (= payloadNumChannels(preset))
+// indexes the returned vector directly.
 inline std::vector<uint64_t> payloadToPresetLayout(const std::vector<uint64_t> &canon,
                                                    const std::string &preset) {
-    if (!isSmallPreset(preset))
-        return canon;
-    const uint64_t records = canon.size() / PAYLOAD_CHANNELS_MAIN;
-    std::vector<uint64_t> out(static_cast<size_t>(records) * PAYLOAD_CHANNELS_SMALL, 0);
+    const uint64_t in_channels = inputPayloadDim();
+    const uint64_t internal_bits = payloadBitSize(preset);
+    const uint64_t internal_channels = payloadNumChannels(preset);
+    if (in_channels == internal_channels && inputPayloadBit() == internal_bits)
+        return canon; // input layout already equals the internal layout
+    const uint64_t records = canon.size() / in_channels;
+    std::vector<uint64_t> out(static_cast<size_t>(records) * internal_channels, 0);
     for (uint64_t r = 0; r < records; ++r)
-        payloadPackToSmall(&canon[static_cast<size_t>(r) * PAYLOAD_CHANNELS_MAIN],
-                           &out[static_cast<size_t>(r) * PAYLOAD_CHANNELS_SMALL]);
+        payloadPackToInternal(&canon[static_cast<size_t>(r) * in_channels],
+                              &out[static_cast<size_t>(r) * internal_channels], internal_bits,
+                              internal_channels);
     return out;
 }
 
@@ -203,6 +232,31 @@ inline nlohmann::json loadJson(const std::string &file_path) {
     if ((target_preset != "small" && target_preset != "medium" && target_preset != "large" && target_preset != "all")) {
         std::cerr << "Available presets: small, medium, large, all" << std::endl;
         throw std::runtime_error("Error: Invalid data preset in " + file_path);
+    }
+
+    // Input payload layout: bits per channel (DIM) and number of channels (CHANNEL).  Drives the
+    // datagen's on-disk format AND the pipeline's derived internal channel count
+    // (payloadNumChannels = ceil(DIM*CHANNEL / internal_bits)).  Absent -> historical 16 x 4.
+    if (config.contains("INPUT_PAYLOAD_BIT"))
+        g_input_payload_bit = config["INPUT_PAYLOAD_BIT"].get<uint64_t>();
+    if (config.contains("INPUT_PAYLOAD_DIM"))
+        g_input_payload_dim = config["INPUT_PAYLOAD_DIM"].get<uint64_t>();
+    const uint64_t input_total_bits = g_input_payload_bit * g_input_payload_dim;
+    if (g_input_payload_bit == 0 || g_input_payload_dim == 0)
+        throw std::runtime_error("Error: INPUT_PAYLOAD_BIT / INPUT_PAYLOAD_DIM must be > 0 in " + file_path);
+    if (input_total_bits > 64)
+        throw std::runtime_error("Error: INPUT_PAYLOAD_BIT * INPUT_PAYLOAD_DIM (" +
+                                 std::to_string(input_total_bits) + ") exceeds the 64-bit single-word " +
+                                 "packing limit in " + file_path);
+    // The hoist (non-small) path packs the internal channels two-per-complex-slot, so its derived
+    // channel count must be even (modPack's slots-per-oh = num_payload_channels_ / 2).
+    if (target_preset != "small" && target_preset != "all") {
+        const uint64_t internal_channels = (input_total_bits + PAYLOAD_BIT_MAIN - 1) / PAYLOAD_BIT_MAIN;
+        if (internal_channels % 2 != 0)
+            throw std::runtime_error("Error: derived internal payload channel count (" +
+                                     std::to_string(internal_channels) + ") must be even for preset '" +
+                                     target_preset + "'; pick INPUT_PAYLOAD_BIT*INPUT_PAYLOAD_DIM a multiple of " +
+                                     std::to_string(2 * PAYLOAD_BIT_MAIN) + " in " + file_path);
     }
 
     return config;

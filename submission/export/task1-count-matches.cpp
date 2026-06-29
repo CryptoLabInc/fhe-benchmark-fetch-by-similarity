@@ -72,7 +72,7 @@ int main(int argc, char *argv[]) {
 
             ctx.setThreshold(threshold);
 
-            timer.start("** Load query ciphertext");
+            timer.start("Recieve query ciphertext");
             ctx.loadQuery(query_file, query_index);
             timer.end();
 

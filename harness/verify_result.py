@@ -11,10 +11,9 @@ import argparse
 import sys
 import numpy as np
 from utils import TextFormat
-from params import PAYLOAD_DIM
 
 # The payloads are vectors of 7 int16 numbers
-#PAYLOAD_DIM = 7
+PAYLOAD_DIM = 7
 
 def main():
     """

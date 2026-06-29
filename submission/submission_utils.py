@@ -34,7 +34,8 @@ THRESHOLD = 0.8
 
 # Number of payload channels per record exposed to the engine. Matches
 # `PAYLOAD_DIM` in harness/params.py (16 int16 values per record).
-NUM_PAYLOAD_CHANNELS = 16
+from harness.params import PAYLOAD_DIM
+PAYLOAD_BIT = 9
 
 # Single source of truth for the environment the juvia engine binaries run with.
 # Edit this dict to relocate the engine's I/O directories or pass extra variables.
@@ -71,8 +72,7 @@ ENGINE_ENV = {
 
 # Engine drops decrypted slot values with |v| <= 0.25 when collecting matches,
 # so payloads must be strictly positive. Offset before encrypt and undo after
-# decrypt. Harness payloads are int16 in [0, 16), well within float64 range
-# even after the +1 shift.
+# decrypt.
 PAYLOAD_OFFSET = 0
 
 
@@ -161,7 +161,8 @@ def update_config(preset: str, size: int):
     config = {
         "PRESET": preset,
         "DEVICE_IDS": get_device_ids(),
-        "NUM_PAYLOAD_CHANNELS": NUM_PAYLOAD_CHANNELS,
+        "INPUT_PAYLOAD_BIT": PAYLOAD_BIT,
+        "INPUT_PAYLOAD_DIM": PAYLOAD_DIM 
     }
     workdir = get_engine_workdir(size)
     workdir.mkdir(parents=True, exist_ok=True)
@@ -250,14 +251,16 @@ def parse_timer_log(log_path: Path):
     """
     text = Path(log_path).read_text(encoding="utf-8", errors="replace")
     block = text.rsplit(_TIMER_SUMMARY_HEADER, 1)[-1]
-    steps = []
+    steps = [[],[]]
     for line in block.splitlines():
         m = _TIMER_LINE_RE.match(line.strip())
         if not m:
             continue
-        label = m.group("label").lstrip("*").strip()
         seconds = float(m.group("value")) * _TIMER_UNIT_SECONDS[m.group("unit")]
-        steps.append((label, seconds))
+        label = m.group("label").lstrip("*").strip()
+        if m.group("label")[:2]=="**":
+            steps[0].append((label, seconds))
+        steps[1].append((label, seconds))
     return steps
 
 
@@ -273,12 +276,13 @@ def server_compute_breakdown(size: int, exe_name: str):
     log_path = get_timer_log_path(size, exe_name)
     if not log_path.exists():
         return None
-    steps = parse_timer_log(log_path)
+    ec, steps = parse_timer_log(log_path)
     if not steps:
         return None
-    report = {"[[Total compute time]]": round(sum(sec for _, sec in steps), 6)}
+    report = {"Total": round(sum(sec for _, sec in steps), 6)}
     for label, sec in steps:
         report[label] = round(sec, 6)
+    report["Encrypted computation"] = round(sum(sec for _, sec in ec), 6)
     return report
 
 

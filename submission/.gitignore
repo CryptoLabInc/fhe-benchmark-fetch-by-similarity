@@ -1,3 +1,4 @@
-build/
-data/
 task-*/
+data/
+**/__pycache__/
+/.vscode/

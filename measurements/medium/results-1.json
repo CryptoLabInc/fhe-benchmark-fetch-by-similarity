@@ -1,16 +1,16 @@
 {
   "Timing": {
-    "Dataset generation": "4.4832s",
-    "Dataset preprocessing": "0.9636s",
-    "Key Generation": "3.4852s",
-    "Dataset encoding and encryption": "13.9433s",
-    "Encrypted dataset preprocessing": "5.3753s",
-    "Query generation": "0.0584s",
-    "Query preprocessing": "0.0469s",
-    "Query encryption": "0.0217s",
-    "Encrypted computation": "0.305s",
-    "Result decryption and postprocessing": "0.0692s",
-    "Total": "28.7519s"
+    "Dataset generation": "4.7515s",
+    "Dataset preprocessing": "0.8291s",
+    "Key Generation": "3.7854s",
+    "Dataset encoding and encryption": "15.487s",
+    "Encrypted dataset preprocessing": "5.4757s",
+    "Query generation": "0.058s",
+    "Query preprocessing": "0.0476s",
+    "Query encryption": "0.0206s",
+    "Encrypted computation": "0.3036s",
+    "Result decryption and postprocessing": "0.0694s",
+    "Total": "30.8279s"
   },
   "Bandwidth": {
     "Public and evaluation keys": "3.0G",
@@ -19,13 +19,14 @@
     "Encrypted results": "128.3K"
   },
   "Server Reported": {
-    "[[Total compute time]]": "0.279413s",
-    "Load query ciphertext": "0.000128s",
-    "Prepare query": "0.00117s",
-    "Scoring": "0.010577s",
-    "Compute matching": "0.155221s",
-    "Copy intermediate ciphertexts to root device": "4e-06s",
-    "Compute payload": "0.111884s",
-    "Save result ciphertexts": "0.000429s"
+    "Total": "0.280113s",
+    "Recieve query ciphertext": "9.9e-05s",
+    "Load query": "0.001134s",
+    "Scoring": "0.010537s",
+    "Compute matching": "0.15541s",
+    "Copy intermediate ciphertexts to root device": "3e-06s",
+    "Compute payload": "0.112518s",
+    "Save result ciphertexts": "0.000412s",
+    "Encrypted computation": "0.278468s"
   }
 }

@@ -1,16 +1,16 @@
 {
   "Timing": {
-    "Dataset generation": "0.2248s",
-    "Dataset preprocessing": "0.0775s",
-    "Key Generation": "3.3151s",
-    "Dataset encoding and encryption": "0.4755s",
-    "Encrypted dataset preprocessing": "2.927s",
-    "Query generation": "0.1665s",
-    "Query preprocessing": "0.0556s",
-    "Query encryption": "0.0232s",
-    "Encrypted computation": "0.042s",
-    "Result decryption and postprocessing": "0.0809s",
-    "Total": "7.388s"
+    "Dataset generation": "0.2355s",
+    "Dataset preprocessing": "0.0742s",
+    "Key Generation": "3.6036s",
+    "Dataset encoding and encryption": "0.5727s",
+    "Encrypted dataset preprocessing": "3.0614s",
+    "Query generation": "0.1502s",
+    "Query preprocessing": "0.0475s",
+    "Query encryption": "0.0207s",
+    "Encrypted computation": "0.04s",
+    "Result decryption and postprocessing": "0.0812s",
+    "Total": "7.887s"
   },
   "Bandwidth": {
     "Public and evaluation keys": "3.0G",
@@ -19,12 +19,13 @@
     "Encrypted results": "1.0M"
   },
   "Server Reported": {
-    "[[Total compute time]]": "0.016659s",
-    "Load query ciphertext": "0.000121s",
-    "Prepare query": "0.000607s",
-    "Scoring": "0.000787s",
-    "Compute matching": "0.012342s",
-    "Count matches": "0.001402s",
-    "Save result": "0.0014s"
+    "Total": "0.016534s",
+    "Recieve query ciphertext": "9.8e-05s",
+    "Load query": "0.000604s",
+    "Scoring": "0.000732s",
+    "Compute matching": "0.012264s",
+    "Count matches": "0.001386s",
+    "Save result ciphertexts": "0.00145s",
+    "Encrypted computation": "0.014382s"
   }
 }
