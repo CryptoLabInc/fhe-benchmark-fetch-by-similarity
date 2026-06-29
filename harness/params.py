@@ -25,9 +25,8 @@ def instance_name(size, count_only):
     else:
         return names[size]
 
-# The payloads are vectors of 16 int16 numbers in the range [0,16)
-MAX_PAYLOAD_VALUE = 16
-PAYLOAD_DIM = 16
+# The payloads are vectors of 7 int16 numbers in the range [0,4095)
+PAYLOAD_DIM = 7
 
 class InstanceParams:
     """Parameters that differ for different instance sizes."""

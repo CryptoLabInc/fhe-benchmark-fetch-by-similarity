@@ -71,7 +71,7 @@ int main(int argc, char *argv[]) {
         const auto processQuery = [&](u64 query_index, Real threshold, const std::string &out_dir) -> std::string {
             ctx.setThreshold(threshold);
 
-            timer.start("** Load query ciphertext");
+            timer.start("Recieve query ciphertext");
             ctx.loadQuery(query_file, query_index);
             timer.end();
 
@@ -94,7 +94,7 @@ int main(int argc, char *argv[]) {
             timer.end();
 
             // Disk I/O — NOT part of the HE computation benchmark.
-            timer.start("** Save result ciphertexts");
+            timer.start("Save result ciphertexts");
             t2.saveResults(result, out_dir);
             timer.end();
 

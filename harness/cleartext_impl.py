@@ -12,10 +12,10 @@ benchmark that operates on cleartext data.
 # See the LICENSE.md file for details.
 import argparse
 import numpy as np
-from params import InstanceParams, TOY, LARGE, PAYLOAD_DIM
+from params import InstanceParams, TOY, LARGE
 
 # The payloads are vectors of 7 int16 numbers in the range [0,4095)
-#PAYLOAD_DIM = 7
+PAYLOAD_DIM = 7
 
 def main():
     """

@@ -11,7 +11,7 @@ for the fetch-by-similarity benchmark.
 import random
 import argparse
 import numpy as np
-from params import InstanceParams, TOY, LARGE, MAX_PAYLOAD_VALUE, PAYLOAD_DIM, instance_name
+from params import InstanceParams, TOY, LARGE, PAYLOAD_DIM, instance_name
 
 def generate_db_points(n_records: int, n_centers: int, dim: int) -> tuple:
     """
@@ -49,16 +49,16 @@ def generate_db_points(n_records: int, n_centers: int, dim: int) -> tuple:
 
 def generate_payloads(n_records: int) -> np.ndarray:
     """
-    Generate random payload vectors with int16 values in range [0, MAX_PAYLOAD_VALUE).
+    Generate random payload vectors with int16 values in range [0, 512).
     
     Args:
         n_records: Number of payload records to generate
         
     Returns:
-        Array of shape (n_records, PAYLOAD_DIM=6) with the payload vectors
+        Array of shape (n_records, PAYLOAD_DIM=7) with the payload vectors
     """
     rng = np.random.default_rng()
-    return rng.integers(low=0, high=MAX_PAYLOAD_VALUE,
+    return rng.integers(low=0, high=512,
                         size=(n_records, PAYLOAD_DIM), dtype=np.int16)
 
 

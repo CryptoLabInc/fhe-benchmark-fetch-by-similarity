@@ -150,7 +150,6 @@ def main():
         utils.log_step(9, "Encrypted computation")
         utils.log_size(io_dir / "ciphertexts_download" / "results.bin" , "Encrypted results")
 
-
         # 10. Client-side: decrypt and postprocess
         utils.run_exe_or_python(exec_dir, "client_decrypt_decode", *this_query_args)
         utils.run_exe_or_python(exec_dir, "client_postprocess", *this_query_args)

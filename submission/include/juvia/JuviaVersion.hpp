@@ -2,11 +2,11 @@
 
 namespace Juvia::version {
 
-constexpr const char* kCommitHash     = "654819303de30605f939078cda085d0aaae16f9d";
-constexpr const char* kCommitShort    = "6548193";
-constexpr const char* kDescribe       = "JUVIA260622-4-g6548193";
+constexpr const char* kCommitHash     = "6bc3b6aee626dda1fd39cf882d91a83395682967";
+constexpr const char* kCommitShort    = "6bc3b6a";
+constexpr const char* kDescribe       = "JUVIA260622-6-g6bc3b6a";
 constexpr bool        kDirty          = false;
-constexpr const char* kBuildTimestamp = "2026-06-26T00:43:22Z";
+constexpr const char* kBuildTimestamp = "2026-06-29T06:47:03Z";
 
 // Runtime values baked into libjuvia.so itself.  The k* constants above
 // are baked into the CONSUMER's binary at its compile time, so comparing
