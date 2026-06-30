@@ -1,13 +1,12 @@
 # FHE Benchmarking Suite - Fetch-by-Similarity Workload
 
-This repository contains a reference implementation of the
+This fork contains the CryptoLab Inc. submission to the
 Fetch-by-cosine-similarity workload of the FHE benchmarking suite of
 [HomomorphicEncryption.org](https://www.HomomorphicEncryption.org).
+See the [README](submission/README.md) in the submission for more details. 
+The rest of this README describes only the original reference 
+implementation of this workload and can be ignored.
 
-Submitters need to fork this repository, then replace the content of
-the `submission` or `submission_remote` subdirectory by their own implementation.
-They also may need to changes or replace the script `scripts/build_task.sh`
-to account for dependencies and build environment for their submission.
 
 ## Execution Modes
 
